@@ -1,0 +1,85 @@
+name: CI
+
+# Har bir push va pull request'da avtomatik ishga tushadi — kod GitHub'ga
+# yetib borishidan oldin barcha testlar o'tganini tasdiqlaydi.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Postgres va Redis — haqiqiy xizmatlar sifatida, docker-compose'dagi
+    # bilan bir xil versiyalarda. Testlar shu haqiqiy bazalarga ulanadi
+    # (mock emas), shuning uchun ular ishlab chiqarish muhitidagi xatti-
+    # harakatni to'g'ri aks ettiradi.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: focusai
+          POSTGRES_PASSWORD: focusai
+          POSTGRES_DB: focusai_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U focusai -d focusai_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SECRET_KEY: ci-test-secret-key
+      DATABASE_URL: postgresql+asyncpg://focusai:focusai@localhost:5432/focusai_db
+      DATABASE_ECHO: "false"
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      JWT_SECRET_KEY: ci-test-jwt-secret-key
+      ANTHROPIC_API_KEY: sk-ant-ci-placeholder
+      FIREBASE_CREDENTIALS_PATH: ./secrets/firebase-service-account.json
+
+    steps:
+      - name: Kodni olish
+        uses: actions/checkout@v4
+
+      - name: Python o'rnatish
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bog'liqliklarni o'rnatish
+        run: |
+          pip install --upgrade pip
+          pip install .
+          pip install pytest pytest-asyncio pytest-cov ruff
+
+      - name: Lint tekshiruvi (ruff)
+        run: ruff check app tests
+        continue-on-error: true # Hozircha faqat ogohlantirish, CI'ni to'xtatmaydi
+
+      - name: Ma'lumotlar bazasi migratsiyalarini qo'llash
+        run: alembic upgrade head
+
+      - name: Testlarni ishga tushirish
+        run: pytest -v --cov=app --cov-report=term-missing
+
+      - name: Coverage hisobotini saqlash
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .coverage
