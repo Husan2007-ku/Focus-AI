@@ -69,7 +69,10 @@ class ClaudeClient:
             ) from exc
 
     async def send_message(self, conversation_history: list[dict[str, str]]) -> str:
-        """Oddiy (tool'siz) chaqiruv — faqat matn javobini qaytaradi. Masalan, kunlik AI fikri uchun."""
+        """Oddiy (tool'siz) chaqiruv — faqat matn javobini qaytaradi.
+
+        Masalan, kunlik AI fikri uchun.
+        """
         response = await self.create_message(conversation_history)
         return extract_text(response)
 

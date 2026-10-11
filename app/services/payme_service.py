@@ -15,7 +15,7 @@ orqali ishlaydi — `params["account"]["ref"]` qiymati
 (`app.utils.payment_ref`) orqali qaysi turga tegishli ekani aniqlanadi.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -37,7 +37,8 @@ from app.utils.payment_ref import PaymentTargetKind, parse_payment_ref
 
 logger = get_logger(__name__)
 
-# Payme'ning o'z raqamli holat kodlari (bizning TransactionState'dan farqli, ularning protokoliga xos)
+# Payme'ning o'z raqamli holat kodlari (bizning TransactionState'dan farqli,
+# ularning protokoliga xos)
 PAYME_STATE_CREATED = 1
 PAYME_STATE_PERFORMED = 2
 PAYME_STATE_CANCELLED_AFTER_CREATE = -1
@@ -70,7 +71,8 @@ class PaymeService:
         if kind == PaymentTargetKind.COMMITMENT:
             if target.status != CommitmentStatus.PENDING_PAYMENT:
                 raise PaymeRPCError(
-                    PaymeErrorCode.UNABLE_TO_PERFORM_OPERATION, "Bu maqsad uchun to'lov allaqachon qabul qilingan."
+                    PaymeErrorCode.UNABLE_TO_PERFORM_OPERATION,
+                    "Bu maqsad uchun to'lov allaqachon qabul qilingan.",
                 )
             expected_amount = target.amount
         else:
@@ -100,7 +102,8 @@ class PaymeService:
         if kind == PaymentTargetKind.COMMITMENT:
             if target.status != CommitmentStatus.PENDING_PAYMENT:
                 raise PaymeRPCError(
-                    PaymeErrorCode.UNABLE_TO_PERFORM_OPERATION, "Bu maqsad uchun to'lov allaqachon qabul qilingan."
+                    PaymeErrorCode.UNABLE_TO_PERFORM_OPERATION,
+                    "Bu maqsad uchun to'lov allaqachon qabul qilingan.",
                 )
             purpose = TransactionPurpose.COMMITMENT
             commitment_id, subscription_id = target.id, None
@@ -126,7 +129,9 @@ class PaymeService:
         await self.db.commit()
         await self.db.refresh(transaction)
 
-        logger.info("payme_transaction_created", transaction_id=str(transaction.id), purpose=purpose.value)
+        logger.info(
+            "payme_transaction_created", transaction_id=str(transaction.id), purpose=purpose.value
+        )
 
         return {
             "create_time": _to_millis(transaction.created_at),
@@ -150,7 +155,7 @@ class PaymeService:
             )
 
         transaction.state = TransactionState.PERFORMED
-        transaction.performed_at = datetime.now(timezone.utc)
+        transaction.performed_at = datetime.now(UTC)
         await self.db.commit()
 
         await self._activate(transaction)
@@ -174,7 +179,7 @@ class PaymeService:
         was_performed = transaction.state == TransactionState.PERFORMED
 
         transaction.state = TransactionState.CANCELLED
-        transaction.cancelled_at = datetime.now(timezone.utc)
+        transaction.cancelled_at = datetime.now(UTC)
         await self.db.commit()
 
         if was_performed:
@@ -187,9 +192,11 @@ class PaymeService:
         return {
             "transaction": str(transaction.id),
             "cancel_time": _to_millis(transaction.cancelled_at),
-            "state": PAYME_STATE_CANCELLED_AFTER_PERFORM
-            if was_performed
-            else PAYME_STATE_CANCELLED_AFTER_CREATE,
+            "state": (
+                PAYME_STATE_CANCELLED_AFTER_PERFORM
+                if was_performed
+                else PAYME_STATE_CANCELLED_AFTER_CREATE
+            ),
         }
 
     async def check_transaction(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -204,8 +211,8 @@ class PaymeService:
         }
 
     async def get_statement(self, params: dict[str, Any]) -> dict[str, Any]:
-        from_dt = datetime.fromtimestamp(params["from"] / 1000, tz=timezone.utc)
-        to_dt = datetime.fromtimestamp(params["to"] / 1000, tz=timezone.utc)
+        from_dt = datetime.fromtimestamp(params["from"] / 1000, tz=UTC)
+        to_dt = datetime.fromtimestamp(params["to"] / 1000, tz=UTC)
 
         result = await self.db.execute(
             select(Transaction).where(
@@ -261,7 +268,9 @@ class PaymeService:
             commitment = await self.finance.get_commitment_by_id(transaction.commitment_id)
             await self.finance.activate_commitment(commitment, transaction)
         else:
-            subscription = await self.subscriptions.get_subscription_by_id(transaction.subscription_id)
+            subscription = await self.subscriptions.get_subscription_by_id(
+                transaction.subscription_id
+            )
             await self.subscriptions.activate_subscription(subscription, subscription.user_id)
 
     async def _reverse(self, transaction: Transaction) -> None:
@@ -269,7 +278,9 @@ class PaymeService:
             commitment = await self.finance.get_commitment_by_id(transaction.commitment_id)
             await self.finance.reverse_deposit(commitment, transaction)
         else:
-            subscription = await self.subscriptions.get_subscription_by_id(transaction.subscription_id)
+            subscription = await self.subscriptions.get_subscription_by_id(
+                transaction.subscription_id
+            )
             await self.subscriptions.deactivate_subscription(subscription)
 
     async def _get_by_provider_id(self, provider_tx_id: str) -> Transaction | None:

@@ -4,7 +4,7 @@ qism, chunki u sana chegaralariga (kecha/bugun/uzilish) bog'liq.
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,9 @@ from app.services.gamification_service import GamificationService
 
 
 @pytest.mark.asyncio
-async def test_first_session_creates_streak_of_one(db_session: AsyncSession, test_user: User) -> None:
+async def test_first_session_creates_streak_of_one(
+    db_session: AsyncSession, test_user: User
+) -> None:
     service = GamificationService(db_session)
     await service.register_focus_session_completed(test_user.id, uuid.uuid4())
 
@@ -25,7 +27,9 @@ async def test_first_session_creates_streak_of_one(db_session: AsyncSession, tes
 
 
 @pytest.mark.asyncio
-async def test_first_session_awards_first_session_badge(db_session: AsyncSession, test_user: User) -> None:
+async def test_first_session_awards_first_session_badge(
+    db_session: AsyncSession, test_user: User
+) -> None:
     service = GamificationService(db_session)
     await service.register_focus_session_completed(test_user.id, uuid.uuid4())
 
@@ -54,7 +58,7 @@ async def test_consecutive_day_increments_streak(db_session: AsyncSession, test_
     # "Kecha faol bo'lgan" holatini qo'lda simulyatsiya qilamiz.
     streak.current_streak = 1
     streak.longest_streak = 1
-    streak.last_active_date = datetime.now(timezone.utc) - timedelta(days=1)
+    streak.last_active_date = datetime.now(UTC) - timedelta(days=1)
     await db_session.commit()
 
     await service.register_focus_session_completed(test_user.id, uuid.uuid4())
@@ -71,7 +75,7 @@ async def test_gap_resets_streak_to_one(db_session: AsyncSession, test_user: Use
     # 3 kun oldin faol bo'lgan — orada kun(lar) o'tkazib yuborilgan.
     streak.current_streak = 5
     streak.longest_streak = 5
-    streak.last_active_date = datetime.now(timezone.utc) - timedelta(days=3)
+    streak.last_active_date = datetime.now(UTC) - timedelta(days=3)
     await db_session.commit()
 
     await service.register_focus_session_completed(test_user.id, uuid.uuid4())
@@ -82,7 +86,9 @@ async def test_gap_resets_streak_to_one(db_session: AsyncSession, test_user: Use
 
 
 @pytest.mark.asyncio
-async def test_xp_accumulates_across_transactions(db_session: AsyncSession, test_user: User) -> None:
+async def test_xp_accumulates_across_transactions(
+    db_session: AsyncSession, test_user: User
+) -> None:
     service = GamificationService(db_session)
     await service.award_xp(test_user.id, XPReason.FOCUS_SESSION_COMPLETED, uuid.uuid4())
     await service.award_xp(test_user.id, XPReason.DAILY_ROUTINE_COMPLETED, uuid.uuid4())

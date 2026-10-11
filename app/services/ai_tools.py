@@ -48,12 +48,17 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     },
     {
         "name": "get_active_focus_session",
-        "description": "Foydalanuvchining hozir davom etayotgan fokus seansi haqida ma'lumot beradi (bo'lmasa, yo'qligini bildiradi).",
+        "description": (
+            "Foydalanuvchining hozir davom etayotgan fokus seansi haqida ma'lumot beradi "
+            "(bo'lmasa, yo'qligini bildiradi)."
+        ),
         "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "get_focus_history_summary",
-        "description": "Foydalanuvchining so'nggi fokus seanslari tarixi va umumiy statistikasini qaytaradi.",
+        "description": (
+            "Foydalanuvchining so'nggi fokus seanslari tarixi va umumiy statistikasini qaytaradi."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -66,12 +71,18 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     },
     {
         "name": "get_gamification_summary",
-        "description": "Foydalanuvchining joriy streak (ketma-ket kunlar), jami XP va qo'lga kiritgan yutuqlarini qaytaradi.",
+        "description": (
+            "Foydalanuvchining joriy streak (ketma-ket kunlar), jami XP va qo'lga kiritgan "
+            "yutuqlarini qaytaradi."
+        ),
         "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "get_today_routine",
-        "description": "Foydalanuvchining bugungi ertalabki rejasi va (agar kiritilgan bo'lsa) kechqurungi hisobotini qaytaradi.",
+        "description": (
+            "Foydalanuvchining bugungi ertalabki rejasi va (agar kiritilgan bo'lsa) "
+            "kechqurungi hisobotini qaytaradi."
+        ),
         "input_schema": {"type": "object", "properties": {}},
     },
 ]
@@ -80,7 +91,10 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
 async def execute_tool(
     tool_name: str, tool_input: dict[str, Any], db: AsyncSession, user: User
 ) -> dict[str, Any]:
-    """Tool nomiga qarab tegishli servis metodini chaqiradi va natijani JSON-mos lug'at sifatida qaytaradi."""
+    """Tool nomiga qarab tegishli servis metodini chaqiradi.
+
+    Natijani JSON-mos lug'at sifatida qaytaradi.
+    """
     try:
         if tool_name == "start_focus_session":
             service = FocusSessionService(db)
@@ -133,7 +147,12 @@ async def execute_tool(
                 "current_streak": summary["current_streak"],
                 "longest_streak": summary["longest_streak"],
                 "total_xp": summary["total_xp"],
-                "badges": [b.badge_code.value for b in summary["badges"]],
+                # MUHIM: `GamificationService.get_summary()` badge'larni allaqachon
+                # lug'at shaklida qaytaradi ({"badge_code": "...", "earned_at": ...}) —
+                # ORM obyekti emas, shuning uchun `.badge_code.value` emas, `["badge_code"]`
+                # bilan o'qiladi (aks holda har safar AttributeError bilan yiqilib,
+                # AI'ga doim umumiy xato matni qaytardi).
+                "badges": [b["badge_code"] for b in summary["badges"]],
             }
 
         if tool_name == "get_today_routine":

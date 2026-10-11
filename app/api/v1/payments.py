@@ -14,7 +14,6 @@ from typing import Any
 
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -63,7 +62,11 @@ async def payme_webhook(
             {
                 "error": {
                     "code": INSUFFICIENT_PRIVILEGE_CODE,
-                    "message": {"uz": "Ruxsat yo'q.", "ru": "Недостаточно прав.", "en": "Insufficient privilege."},
+                    "message": {
+                        "uz": "Ruxsat yo'q.",
+                        "ru": "Недостаточно прав.",
+                        "en": "Insufficient privilege.",
+                    },
                 },
                 "id": request_id,
             }
@@ -77,7 +80,11 @@ async def payme_webhook(
             {
                 "error": {
                     "code": -32601,
-                    "message": {"uz": "Metod topilmadi.", "ru": "Метод не найден.", "en": "Method not found."},
+                    "message": {
+                        "uz": "Metod topilmadi.",
+                        "ru": "Метод не найден.",
+                        "en": "Method not found.",
+                    },
                 },
                 "id": request_id,
             }
@@ -89,7 +96,9 @@ async def payme_webhook(
             result = await getattr(service, service_method)(body.get("params", {}))
             return JSONResponse({"result": result, "id": request_id})
         except PaymeRPCError as exc:
-            logger.warning("payme_rpc_error", method=method_name, code=exc.code, message=exc.message)
+            logger.warning(
+                "payme_rpc_error", method=method_name, code=exc.code, message=exc.message
+            )
             return JSONResponse(
                 {
                     "error": {
@@ -99,7 +108,8 @@ async def payme_webhook(
                     "id": request_id,
                 }
             )
-        except Exception as exc:  # kutilmagan xato — Payme'ga umumiy xato qaytariladi, batafsili ichki logga yoziladi
+        # kutilmagan xato — Payme'ga umumiy xato qaytariladi, batafsili ichki logga yoziladi
+        except Exception as exc:
             logger.error("payme_webhook_unhandled_error", method=method_name, error=str(exc))
             return JSONResponse(
                 {

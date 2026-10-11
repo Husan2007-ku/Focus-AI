@@ -64,12 +64,13 @@ jobs:
       - name: Bog'liqliklarni o'rnatish
         run: |
           pip install --upgrade pip
-          pip install .
-          pip install pytest pytest-asyncio pytest-cov ruff
+          pip install ".[dev]"
 
       - name: Lint tekshiruvi (ruff)
         run: ruff check app tests
-        continue-on-error: true # Hozircha faqat ogohlantirish, CI'ni to'xtatmaydi
+
+      - name: Formatlash tekshiruvi (black)
+        run: black --check app tests
 
       - name: Ma'lumotlar bazasi migratsiyalarini qo'llash
         run: alembic upgrade head

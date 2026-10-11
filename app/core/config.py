@@ -63,6 +63,7 @@ class Settings(BaseSettings):
 
     # ── Monitoring ─────────────────────────────────────────
     SENTRY_DSN: str = ""
+    ADMIN_API_KEY: str = ""  # bo'sh bo'lsa — /api/v1/admin/* butunlay yopiq
 
     # ── CORS ───────────────────────────────────────────────
     CORS_ORIGINS: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])

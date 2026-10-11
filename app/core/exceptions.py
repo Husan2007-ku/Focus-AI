@@ -60,9 +60,7 @@ class ExternalServiceError(FocusAIException):
 
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(FocusAIException)
-    async def focusai_exception_handler(
-        request: Request, exc: FocusAIException
-    ) -> JSONResponse:
+    async def focusai_exception_handler(request: Request, exc: FocusAIException) -> JSONResponse:
         logger.warning(
             "handled_exception",
             error_code=exc.error_code,

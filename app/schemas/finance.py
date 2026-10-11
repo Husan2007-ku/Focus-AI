@@ -17,7 +17,9 @@ MAX_COMMITMENT_AMOUNT = Decimal("5000000")  # 5 000 000 so'm — ehtiyot chorasi
 class CreateCommitmentSchema(BaseModel):
     goal_description: str = Field(..., min_length=1, max_length=1000)
     amount: Decimal = Field(..., description="So'mda, masalan 50000")
-    target_focus_minutes: int = Field(..., ge=1, le=10080, description="Maqsad davomida jami fokus daqiqasi")
+    target_focus_minutes: int = Field(
+        ..., ge=1, le=10080, description="Maqsad davomida jami fokus daqiqasi"
+    )
     deadline: datetime
     beneficiary_note: str | None = Field(default=None, max_length=255)
 

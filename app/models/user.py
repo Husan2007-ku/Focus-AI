@@ -26,14 +26,14 @@ if TYPE_CHECKING:
     from app.models.focus_session import FocusSession
 
 
-class AuthProvider(str, enum.Enum):
+class AuthProvider(enum.StrEnum):
     """Foydalanuvchi qaysi usul bilan ro'yxatdan o'tganini bildiradi."""
 
     PHONE = "phone"
     GOOGLE = "google"
 
 
-class SubscriptionTier(str, enum.Enum):
+class SubscriptionTier(enum.StrEnum):
     """Joriy tarif darajasi — tezkor tekshiruvlar uchun denormalizatsiya qilingan
     maydon. Haqiqiy to'lov holati Faza 3'da qo'shiladigan `subscriptions`
     jadvalida saqlanadi; bu yerdagi qiymat shundan sinxronlanadi."""
@@ -46,9 +46,7 @@ class SubscriptionTier(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # ── Autentifikatsiya ───────────────────────────────────
     phone_number: Mapped[str | None] = mapped_column(String(20), unique=True, index=True)

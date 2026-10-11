@@ -14,18 +14,18 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.models.user import User
+    pass
 
 
-class OrganizationStatus(str, enum.Enum):
+class OrganizationStatus(enum.StrEnum):
     ACTIVE = "active"
     SUSPENDED = "suspended"  # to'lov muammosi yoki shartnoma tugagan
 
@@ -33,9 +33,7 @@ class OrganizationStatus(str, enum.Enum):
 class Organization(Base):
     __tablename__ = "organizations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     # Taklif havolasi/kodi orqali xodimlar o'z-o'zini tashkilotga qo'shishi uchun.
     invite_code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)

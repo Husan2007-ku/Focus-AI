@@ -32,7 +32,9 @@ async def chat(
     boshlanadi. Kunlik so'rov limiti tarifga qarab qo'llaniladi.
     """
     service = AIService(db)
-    conversation_id, reply = await service.chat(current_user, payload.message, payload.conversation_id)
+    conversation_id, reply = await service.chat(
+        current_user, payload.message, payload.conversation_id
+    )
     return ChatResponseSchema(conversation_id=conversation_id, reply=reply)
 
 

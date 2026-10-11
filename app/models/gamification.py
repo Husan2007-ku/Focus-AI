@@ -15,25 +15,25 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.models.user import User
+    pass
 
 
-class XPReason(str, enum.Enum):
+class XPReason(enum.StrEnum):
     FOCUS_SESSION_COMPLETED = "focus_session_completed"
     DAILY_ROUTINE_COMPLETED = "daily_routine_completed"
     STREAK_MILESTONE = "streak_milestone"
     BADGE_EARNED = "badge_earned"
 
 
-class BadgeCode(str, enum.Enum):
+class BadgeCode(enum.StrEnum):
     FIRST_SESSION = "first_session"
     STREAK_3 = "streak_3"
     STREAK_7 = "streak_7"
@@ -46,9 +46,7 @@ class UserStreak(Base):
 
     __tablename__ = "user_streaks"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -75,15 +73,15 @@ class UserStreak(Base):
 class XPTransaction(Base):
     __tablename__ = "xp_transactions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
     reason: Mapped[XPReason] = mapped_column(Enum(XPReason, name="xp_reason_enum"), nullable=False)
-    reference_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # masalan, focus_session.id
+    reference_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True)
+    )  # masalan, focus_session.id
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -97,13 +95,13 @@ class UserBadge(Base):
     __tablename__ = "user_badges"
     __table_args__ = (UniqueConstraint("user_id", "badge_code", name="uq_user_badge"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    badge_code: Mapped[BadgeCode] = mapped_column(Enum(BadgeCode, name="badge_code_enum"), nullable=False)
+    badge_code: Mapped[BadgeCode] = mapped_column(
+        Enum(BadgeCode, name="badge_code_enum"), nullable=False
+    )
 
     earned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

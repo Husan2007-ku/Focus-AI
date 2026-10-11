@@ -13,7 +13,8 @@ from app.models.ai_chat import MessageRole
 class ChatRequestSchema(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     conversation_id: uuid.UUID | None = Field(
-        default=None, description="Mavjud suhbatni davom ettirish uchun; bo'sh bo'lsa — yangi suhbat boshlanadi"
+        default=None,
+        description="Mavjud suhbatni davom ettirish uchun; bo'sh bo'lsa — yangi suhbat boshlanadi",
     )
 
 

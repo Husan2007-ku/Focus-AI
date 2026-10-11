@@ -17,13 +17,15 @@ from app.core.redis_client import redis_client
 logger = get_logger(__name__)
 
 ESKIZ_TOKEN_CACHE_KEY = "eskiz:auth_token"
-ESKIZ_TOKEN_TTL_SECONDS = 25 * 24 * 60 * 60  # ~25 kun (30 kunlik amal qilish muddatidan ehtiyotkorona kam)
+# ~25 kun (30 kunlik amal qilish muddatidan ehtiyotkorona kam)
+ESKIZ_TOKEN_TTL_SECONDS = 25 * 24 * 60 * 60
 
 
 class EskizSMSClient:
     def __init__(self) -> None:
         self.base_url = settings.SMS_PROVIDER_BASE_URL.rstrip("/")
-        self.email = settings.SMS_PROVIDER_API_KEY  # Eskiz'da bu "email" maydoni sifatida ishlatiladi
+        # Eskiz'da bu "email" maydoni sifatida ishlatiladi
+        self.email = settings.SMS_PROVIDER_API_KEY
         self._http = httpx.AsyncClient(timeout=10.0)
 
     async def _get_token(self) -> str:
@@ -48,7 +50,21 @@ class EskizSMSClient:
     async def send_otp(self, phone_number: str, code: str) -> None:
         """
         `phone_number` +998 bilan boshlanadi; Eskiz API '+' belgisisiz kutadi.
+
+        SMS provider sozlanmagan bo'lsa (lokal/dev muhit — `.env`da
+        `SMS_PROVIDER_*` bo'sh), Eskiz'ga haqiqiy so'rov yubormasdan kodni
+        log'ga yozadi. Bu real Eskiz hisobisiz OTP oqimini lokal sinash
+        imkonini beradi; production'da bu maydonlar har doim to'ldirilgan
+        bo'lishi kerak, aks holda foydalanuvchilar kod ola olmaydi.
         """
+        if not self.base_url or not self.email:
+            logger.warning(
+                "sms_provider_not_configured_dev_fallback",
+                phone=phone_number,
+                otp_code=code,
+            )
+            return
+
         token = await self._get_token()
         clean_phone = phone_number.lstrip("+")
         message = f"FocusAI tasdiqlash kodi: {code}. Kodni hech kimga bermang."
@@ -66,7 +82,9 @@ class EskizSMSClient:
             response.raise_for_status()
         except httpx.HTTPError as exc:
             logger.error("eskiz_send_failed", phone=clean_phone, error=str(exc))
-            raise ExternalServiceError("SMS yuborib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.") from exc
+            raise ExternalServiceError(
+                "SMS yuborib bo'lmadi. Birozdan so'ng qayta urinib ko'ring."
+            ) from exc
 
         logger.info("otp_sms_sent", phone=clean_phone)
 

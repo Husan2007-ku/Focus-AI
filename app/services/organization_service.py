@@ -1,18 +1,18 @@
 """
 Tashkilot (B2B) biznes logikasi.
+
+DB bilan ishlash `OrganizationRepository`ga o'tkazilgan (TZ v2.0, 3-band).
 """
 
 import secrets
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.core.logging import get_logger
-from app.models.focus_session import FocusSession, FocusSessionStatus
-from app.models.gamification import UserStreak
 from app.models.organization import Organization, OrganizationStatus
 from app.models.user import User
+from app.repositories.organization_repository import OrganizationRepository
 
 logger = get_logger(__name__)
 
@@ -24,8 +24,11 @@ def _generate_invite_code() -> str:
 class OrganizationService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self.repo = OrganizationRepository(db)
 
-    async def create_organization(self, admin_user: User, name: str, seat_limit: int) -> Organization:
+    async def create_organization(
+        self, admin_user: User, name: str, seat_limit: int
+    ) -> Organization:
         if admin_user.organization_id is not None:
             raise ConflictError("Siz allaqachon bir tashkilotga tegishlisiz.")
 
@@ -36,38 +39,39 @@ class OrganizationService:
             status=OrganizationStatus.ACTIVE,
             admin_user_id=admin_user.id,
         )
-        self.db.add(organization)
-        await self.db.commit()
-        await self.db.refresh(organization)
+        organization = await self.repo.add(organization)
 
         admin_user.organization_id = organization.id
-        await self.db.commit()
+        await self.repo.commit()
 
-        logger.info("organization_created", organization_id=str(organization.id), admin_id=str(admin_user.id))
+        logger.info(
+            "organization_created",
+            organization_id=str(organization.id),
+            admin_id=str(admin_user.id),
+        )
         return organization
 
     async def join_organization(self, user: User, invite_code: str) -> Organization:
         if user.organization_id is not None:
             raise ConflictError("Siz allaqachon bir tashkilotga tegishlisiz. Avval undan chiqing.")
 
-        result = await self.db.execute(
-            select(Organization).where(Organization.invite_code == invite_code.upper())
-        )
-        organization = result.scalar_one_or_none()
+        organization = await self.repo.get_by_invite_code(invite_code.upper())
 
         if organization is None:
             raise NotFoundError("Taklif kodi noto'g'ri.")
         if organization.status != OrganizationStatus.ACTIVE:
             raise ConflictError("Bu tashkilot hozircha faol emas.")
 
-        member_count = await self._count_members(organization.id)
+        member_count = await self.repo.count_members(organization.id)
         if member_count >= organization.seat_limit:
             raise ConflictError("Tashkilotda bo'sh o'rin qolmagan.")
 
         user.organization_id = organization.id
-        await self.db.commit()
+        await self.repo.commit()
 
-        logger.info("user_joined_organization", user_id=str(user.id), organization_id=str(organization.id))
+        logger.info(
+            "user_joined_organization", user_id=str(user.id), organization_id=str(organization.id)
+        )
         return organization
 
     async def leave_organization(self, user: User) -> None:
@@ -75,14 +79,13 @@ class OrganizationService:
             raise ConflictError("Siz hech qanday tashkilotga tegishli emassiz.")
 
         user.organization_id = None
-        await self.db.commit()
+        await self.repo.commit()
         logger.info("user_left_organization", user_id=str(user.id))
 
     async def get_my_organization(self, user: User) -> Organization | None:
         if user.organization_id is None:
             return None
-        result = await self.db.execute(select(Organization).where(Organization.id == user.organization_id))
-        return result.scalar_one_or_none()
+        return await self.repo.get_by_id(user.organization_id)
 
     async def get_stats(self, user: User) -> dict:
         organization = await self.get_my_organization(user)
@@ -91,27 +94,9 @@ class OrganizationService:
         if organization.admin_user_id != user.id:
             raise ForbiddenError("Faqat tashkilot admini statistikani ko'ra oladi.")
 
-        member_count = await self._count_members(organization.id)
-
-        sessions_result = await self.db.execute(
-            select(
-                func.count(FocusSession.id),
-                func.coalesce(func.sum(FocusSession.actual_duration_minutes), 0),
-            )
-            .join(User, User.id == FocusSession.user_id)
-            .where(
-                User.organization_id == organization.id,
-                FocusSession.status == FocusSessionStatus.COMPLETED,
-            )
-        )
-        total_sessions, total_minutes = sessions_result.one()
-
-        streak_result = await self.db.execute(
-            select(func.coalesce(func.avg(UserStreak.current_streak), 0))
-            .join(User, User.id == UserStreak.user_id)
-            .where(User.organization_id == organization.id)
-        )
-        average_streak = float(streak_result.scalar_one())
+        member_count = await self.repo.count_members(organization.id)
+        total_sessions, total_minutes = await self.repo.get_focus_stats(organization.id)
+        average_streak = await self.repo.get_average_streak(organization.id)
 
         return {
             "member_count": member_count,
@@ -120,10 +105,3 @@ class OrganizationService:
             "total_focus_minutes": total_minutes,
             "average_current_streak": round(average_streak, 1),
         }
-
-    # ── Ichki yordamchi metodlar ─────────────────────────────
-    async def _count_members(self, organization_id) -> int:
-        result = await self.db.execute(
-            select(func.count(User.id)).where(User.organization_id == organization_id)
-        )
-        return result.scalar_one()

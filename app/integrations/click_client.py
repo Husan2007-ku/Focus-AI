@@ -7,6 +7,7 @@ tasdiqlanadi. Https://docs.click.uz/ (Merchant API) spetsifikatsiyasiga mos.
 """
 
 import hashlib
+import secrets
 
 from app.core.config import settings
 
@@ -72,4 +73,6 @@ def verify_signature(
         )
 
     expected = hashlib.md5(raw.encode()).hexdigest()
-    return expected == sign_string
+    # Timing-attack'dan himoya uchun doimiy-vaqtli solishtirish (payme_service.py
+    # bilan bir xil yondashuv — webhook imzosini oddiy == bilan solishtirmaslik kerak).
+    return secrets.compare_digest(expected, sign_string)

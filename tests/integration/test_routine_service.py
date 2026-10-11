@@ -67,8 +67,13 @@ async def test_evening_report_after_morning_plan_succeeds(
 
 
 @pytest.mark.asyncio
-async def test_same_day_morning_plan_is_idempotent(db_session: AsyncSession, test_user: User) -> None:
-    """Bir kunda ikkinchi marta ertalabki reja kiritilsa, yangi yozuv emas, mavjudi yangilanishi kerak."""
+async def test_same_day_morning_plan_is_idempotent(
+    db_session: AsyncSession, test_user: User
+) -> None:
+    """Bir kunda ikkinchi marta ertalabki reja kiritilsa.
+
+    Yangi yozuv emas, mavjudi yangilanishi kerak.
+    """
     service = RoutineService(db_session)
     first = await service.submit_morning_plan(
         test_user, MorningPlanSchema(morning_plan="Birinchi reja", planned_focus_minutes=30)

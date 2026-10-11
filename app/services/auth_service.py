@@ -1,6 +1,9 @@
 """
 Autentifikatsiya biznes logikasi: OTP orqali telefon tasdiqlash,
 Google OAuth, va token boshqaruvi.
+
+DB bilan ishlash `UserRepository`ga o'tkazilgan (TZ v2.0, 3-band) — bu
+servis endi faqat OTP/Google oqimi va token chiqarish logikasiga javob beradi.
 """
 
 import hashlib
@@ -8,16 +11,15 @@ import secrets
 
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.exceptions import ExternalServiceError, RateLimitError, UnauthorizedError
 from app.core.logging import get_logger
 from app.core.redis_client import redis_client
 from app.core.security import issue_token_pair
 from app.integrations.sms_client import sms_client
 from app.models.user import AuthProvider, User
+from app.repositories.user_repository import UserRepository
 
 logger = get_logger(__name__)
 
@@ -34,6 +36,7 @@ def _hash_otp(code: str) -> str:
 class AuthService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self.users = UserRepository(db)
 
     # ── OTP oqimi ────────────────────────────────────────────
     async def request_otp(self, phone_number: str) -> None:
@@ -48,7 +51,8 @@ class AuthService:
         attempts_key = f"otp:attempts:{phone_number}"
 
         await redis_client.setex(code_key, OTP_TTL_SECONDS, _hash_otp(code))
-        await redis_client.delete(attempts_key)  # yangi kod — urinishlar hisoblagichi ham yangilanadi
+        # Yangi kod uchun urinishlar hisoblagichi ham yangilanadi.
+        await redis_client.delete(attempts_key)
         await redis_client.setex(cooldown_key, OTP_RESEND_COOLDOWN_SECONDS, "1")
 
         await sms_client.send_otp(phone_number, code)
@@ -80,14 +84,11 @@ class AuthService:
         return await issue_token_pair(str(user.id))
 
     async def _get_or_create_user_by_phone(self, phone_number: str) -> User:
-        result = await self.db.execute(select(User).where(User.phone_number == phone_number))
-        user = result.scalar_one_or_none()
+        user = await self.users.get_by_phone(phone_number)
 
         if user is None:
             user = User(phone_number=phone_number, primary_auth_provider=AuthProvider.PHONE)
-            self.db.add(user)
-            await self.db.commit()
-            await self.db.refresh(user)
+            user = await self.users.create(user)
             logger.info("new_user_created", auth_provider="phone", user_id=str(user.id))
 
         return user
@@ -118,8 +119,7 @@ class AuthService:
     async def _get_or_create_user_by_google(
         self, google_id: str, email: str | None, full_name: str | None, avatar_url: str | None
     ) -> User:
-        result = await self.db.execute(select(User).where(User.google_id == google_id))
-        user = result.scalar_one_or_none()
+        user = await self.users.get_by_google_id(google_id)
 
         if user is None:
             user = User(
@@ -129,9 +129,7 @@ class AuthService:
                 avatar_url=avatar_url,
                 primary_auth_provider=AuthProvider.GOOGLE,
             )
-            self.db.add(user)
-            await self.db.commit()
-            await self.db.refresh(user)
+            user = await self.users.create(user)
             logger.info("new_user_created", auth_provider="google", user_id=str(user.id))
 
         return user

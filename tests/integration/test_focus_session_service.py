@@ -14,7 +14,9 @@ from app.services.focus_service import FocusSessionService
 
 
 @pytest.mark.asyncio
-async def test_start_session_creates_active_session(db_session: AsyncSession, test_user: User) -> None:
+async def test_start_session_creates_active_session(
+    db_session: AsyncSession, test_user: User
+) -> None:
     service = FocusSessionService(db_session)
     session = await service.start_session(
         test_user, FocusSessionStartSchema(planned_duration_minutes=25)
@@ -26,7 +28,9 @@ async def test_start_session_creates_active_session(db_session: AsyncSession, te
 
 
 @pytest.mark.asyncio
-async def test_cannot_start_second_active_session(db_session: AsyncSession, test_user: User) -> None:
+async def test_cannot_start_second_active_session(
+    db_session: AsyncSession, test_user: User
+) -> None:
     service = FocusSessionService(db_session)
     await service.start_session(test_user, FocusSessionStartSchema(planned_duration_minutes=25))
 
@@ -35,7 +39,9 @@ async def test_cannot_start_second_active_session(db_session: AsyncSession, test
 
 
 @pytest.mark.asyncio
-async def test_complete_session_calculates_duration(db_session: AsyncSession, test_user: User) -> None:
+async def test_complete_session_calculates_duration(
+    db_session: AsyncSession, test_user: User
+) -> None:
     service = FocusSessionService(db_session)
     session = await service.start_session(
         test_user, FocusSessionStartSchema(planned_duration_minutes=25)
@@ -61,11 +67,20 @@ async def test_complete_nonexistent_session_raises_not_found(
 
 
 @pytest.mark.asyncio
-async def test_after_completion_new_session_can_start(db_session: AsyncSession, test_user: User) -> None:
-    """Bitta seans yakunlangach, yangisini boshlash mumkin bo'lishi kerak (qoida faqat FAOL seansga tegishli)."""
+async def test_after_completion_new_session_can_start(
+    db_session: AsyncSession, test_user: User
+) -> None:
+    """Bitta seans yakunlangach, yangisini boshlash mumkin bo'lishi kerak.
+
+    Qoida faqat FAOL seansga tegishli.
+    """
     service = FocusSessionService(db_session)
-    first = await service.start_session(test_user, FocusSessionStartSchema(planned_duration_minutes=25))
+    first = await service.start_session(
+        test_user, FocusSessionStartSchema(planned_duration_minutes=25)
+    )
     await service.complete_session(test_user, first.id)
 
-    second = await service.start_session(test_user, FocusSessionStartSchema(planned_duration_minutes=15))
+    second = await service.start_session(
+        test_user, FocusSessionStartSchema(planned_duration_minutes=15)
+    )
     assert second.status == FocusSessionStatus.ACTIVE

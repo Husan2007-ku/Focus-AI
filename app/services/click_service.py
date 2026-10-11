@@ -11,7 +11,7 @@ ishlaydi — `merchant_trans_id` qiymati o'zi umumiy "reference" bo'lib,
 `app.utils.payment_ref` orqali qaysi turga tegishli ekani aniqlanadi.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -20,7 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.integrations.click_client import ClickAction, ClickErrorCode, verify_signature
-from app.models.finance import CommitmentStatus, PaymentProvider, Transaction, TransactionPurpose, TransactionState
+from app.models.finance import (
+    CommitmentStatus,
+    PaymentProvider,
+    Transaction,
+    TransactionPurpose,
+    TransactionState,
+)
 from app.services.finance_service import FinanceService
 from app.services.subscription_service import SubscriptionService
 from app.utils.payment_ref import PaymentTargetKind, parse_payment_ref
@@ -38,7 +44,11 @@ class ClickService:
         base_response = self._base_response(params)
 
         if not self._verify(params, action=ClickAction.PREPARE):
-            return {**base_response, "error": ClickErrorCode.SIGN_CHECK_FAILED, "error_note": "Imzo mos emas"}
+            return {
+                **base_response,
+                "error": ClickErrorCode.SIGN_CHECK_FAILED,
+                "error_note": "Imzo mos emas",
+            }
 
         existing = await self._get_by_click_id(params["click_trans_id"])
         if existing is not None:
@@ -52,14 +62,26 @@ class ClickService:
         try:
             kind, target_id = parse_payment_ref(str(params["merchant_trans_id"]))
         except ValueError:
-            return {**base_response, "error": ClickErrorCode.USER_NOT_FOUND, "error_note": "Noto'g'ri reference"}
+            return {
+                **base_response,
+                "error": ClickErrorCode.USER_NOT_FOUND,
+                "error_note": "Noto'g'ri reference",
+            }
 
         if kind == PaymentTargetKind.COMMITMENT:
             commitment = await self.finance.get_commitment_by_id(target_id)
             if commitment is None:
-                return {**base_response, "error": ClickErrorCode.USER_NOT_FOUND, "error_note": "Maqsad topilmadi"}
+                return {
+                    **base_response,
+                    "error": ClickErrorCode.USER_NOT_FOUND,
+                    "error_note": "Maqsad topilmadi",
+                }
             if commitment.status != CommitmentStatus.PENDING_PAYMENT:
-                return {**base_response, "error": ClickErrorCode.ALREADY_PAID, "error_note": "Allaqachon to'langan"}
+                return {
+                    **base_response,
+                    "error": ClickErrorCode.ALREADY_PAID,
+                    "error_note": "Allaqachon to'langan",
+                }
             expected_amount = commitment.amount
             purpose = TransactionPurpose.COMMITMENT
             commitment_id, subscription_id = commitment.id, None
@@ -68,14 +90,22 @@ class ClickService:
 
             subscription = await self.subscriptions.get_subscription_by_id(target_id)
             if subscription is None:
-                return {**base_response, "error": ClickErrorCode.USER_NOT_FOUND, "error_note": "Obuna topilmadi"}
+                return {
+                    **base_response,
+                    "error": ClickErrorCode.USER_NOT_FOUND,
+                    "error_note": "Obuna topilmadi",
+                }
             expected_amount = Decimal(PLAN_PRICES_SOM[subscription.plan])
             purpose = TransactionPurpose.SUBSCRIPTION
             commitment_id, subscription_id = None, subscription.id
 
         amount_som = Decimal(params["amount"])
         if amount_som != expected_amount:
-            return {**base_response, "error": ClickErrorCode.INVALID_AMOUNT, "error_note": "Summa mos emas"}
+            return {
+                **base_response,
+                "error": ClickErrorCode.INVALID_AMOUNT,
+                "error_note": "Summa mos emas",
+            }
 
         transaction = Transaction(
             purpose=purpose,
@@ -91,7 +121,9 @@ class ClickService:
         await self.db.commit()
         await self.db.refresh(transaction)
 
-        logger.info("click_transaction_prepared", transaction_id=str(transaction.id), purpose=purpose.value)
+        logger.info(
+            "click_transaction_prepared", transaction_id=str(transaction.id), purpose=purpose.value
+        )
 
         return {
             **base_response,
@@ -108,11 +140,19 @@ class ClickService:
             action=ClickAction.COMPLETE,
             merchant_prepare_id=params.get("merchant_prepare_id"),
         ):
-            return {**base_response, "error": ClickErrorCode.SIGN_CHECK_FAILED, "error_note": "Imzo mos emas"}
+            return {
+                **base_response,
+                "error": ClickErrorCode.SIGN_CHECK_FAILED,
+                "error_note": "Imzo mos emas",
+            }
 
         transaction = await self._get_by_click_id(params["click_trans_id"])
         if transaction is None:
-            return {**base_response, "error": ClickErrorCode.TRANSACTION_NOT_FOUND, "error_note": "Tranzaksiya topilmadi"}
+            return {
+                **base_response,
+                "error": ClickErrorCode.TRANSACTION_NOT_FOUND,
+                "error_note": "Tranzaksiya topilmadi",
+            }
 
         if transaction.state == TransactionState.PERFORMED:
             return {
@@ -122,12 +162,16 @@ class ClickService:
                 "error_note": "Success",
             }
         if transaction.state == TransactionState.CANCELLED:
-            return {**base_response, "error": ClickErrorCode.TRANSACTION_CANCELLED, "error_note": "Tranzaksiya bekor qilingan"}
+            return {
+                **base_response,
+                "error": ClickErrorCode.TRANSACTION_CANCELLED,
+                "error_note": "Tranzaksiya bekor qilingan",
+            }
 
         click_reported_error = int(params.get("error", 0))
         if click_reported_error < 0:
             transaction.state = TransactionState.CANCELLED
-            transaction.cancelled_at = datetime.now(timezone.utc)
+            transaction.cancelled_at = datetime.now(UTC)
             await self.db.commit()
 
             if transaction.purpose == TransactionPurpose.COMMITMENT:
@@ -135,17 +179,23 @@ class ClickService:
                 commitment.status = CommitmentStatus.CANCELLED
                 await self.db.commit()
 
-            return {**base_response, "error": ClickErrorCode.TRANSACTION_CANCELLED, "error_note": "Click tomonidan bekor qilingan"}
+            return {
+                **base_response,
+                "error": ClickErrorCode.TRANSACTION_CANCELLED,
+                "error_note": "Click tomonidan bekor qilingan",
+            }
 
         transaction.state = TransactionState.PERFORMED
-        transaction.performed_at = datetime.now(timezone.utc)
+        transaction.performed_at = datetime.now(UTC)
         await self.db.commit()
 
         if transaction.purpose == TransactionPurpose.COMMITMENT:
             commitment = await self.finance.get_commitment_by_id(transaction.commitment_id)
             await self.finance.activate_commitment(commitment, transaction)
         else:
-            subscription = await self.subscriptions.get_subscription_by_id(transaction.subscription_id)
+            subscription = await self.subscriptions.get_subscription_by_id(
+                transaction.subscription_id
+            )
             await self.subscriptions.activate_subscription(subscription, subscription.user_id)
 
         logger.info("click_transaction_completed", transaction_id=str(transaction.id))

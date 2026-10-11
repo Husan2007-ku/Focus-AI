@@ -13,8 +13,8 @@ Xavfsizlik dizayni:
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from enum import Enum
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 
 from jose import JWTError, jwt
 
@@ -26,13 +26,13 @@ from app.core.redis_client import redis_client
 logger = get_logger(__name__)
 
 
-class TokenType(str, Enum):
+class TokenType(StrEnum):
     ACCESS = "access"
     REFRESH = "refresh"
 
 
 def _create_token(subject: str, token_type: TokenType, expires_delta: timedelta) -> tuple[str, str]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     jti = str(uuid.uuid4())
     payload = {
         "sub": subject,

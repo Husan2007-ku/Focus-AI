@@ -6,7 +6,7 @@ tool-use (agentic) rejimini boshqarish.
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,9 @@ from app.services.ai_tools import TOOL_DEFINITIONS, execute_tool
 
 logger = get_logger(__name__)
 
-MAX_HISTORY_MESSAGES = 20  # Claude'ga yuboriladigan kontekst chegarasi (token xarajatini nazorat qilish uchun)
+MAX_HISTORY_MESSAGES = (
+    20  # Claude'ga yuboriladigan kontekst chegarasi (token xarajatini nazorat qilish uchun)
+)
 MAX_TOOL_ITERATIONS = 5  # cheksiz tool-chaqiruv siklidan himoya
 
 
@@ -31,7 +33,9 @@ class AIService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def chat(self, user: User, message: str, conversation_id: uuid.UUID | None) -> tuple[uuid.UUID, str]:
+    async def chat(
+        self, user: User, message: str, conversation_id: uuid.UUID | None
+    ) -> tuple[uuid.UUID, str]:
         await self._enforce_daily_limit(user)
 
         conversation = await self._get_or_create_conversation(user, conversation_id)
@@ -112,7 +116,10 @@ class AIService:
             messages.append({"role": "user", "content": tool_results})
 
         logger.warning("ai_agent_max_iterations_reached", user_id=str(user.id))
-        return "Kechirasiz, so'rovingizni to'liq bajara olmadim. Iltimos, aniqroq qilib qayta so'rab ko'ring."
+        return (
+            "Kechirasiz, so'rovingizni to'liq bajara olmadim. "
+            "Iltimos, aniqroq qilib qayta so'rab ko'ring."
+        )
 
     # ── Ichki yordamchi metodlar ─────────────────────────────
     async def _enforce_daily_limit(self, user: User) -> None:
@@ -122,7 +129,7 @@ class AIService:
             else settings.AI_DAILY_REQUEST_LIMIT_PREMIUM
         )
 
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         key = f"ai:daily_count:{user.id}:{today}"
 
         current_count = await redis_client.incr(key)

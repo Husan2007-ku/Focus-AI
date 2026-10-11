@@ -9,10 +9,10 @@ ishlatiladi (`ac.ref=<reference>`).
 """
 
 import uuid
-from enum import Enum
+from enum import StrEnum
 
 
-class PaymentTargetKind(str, Enum):
+class PaymentTargetKind(StrEnum):
     COMMITMENT = "commitment"
     SUBSCRIPTION = "subscription"
 

@@ -19,9 +19,7 @@ class NotificationService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def register_device(
-        self, user: User, fcm_token: str, platform: DevicePlatform
-    ) -> Device:
+    async def register_device(self, user: User, fcm_token: str, platform: DevicePlatform) -> Device:
         result = await self.db.execute(select(Device).where(Device.fcm_token == fcm_token))
         device = result.scalar_one_or_none()
 

@@ -5,8 +5,7 @@ erishilmaganini to'g'ri aniqlash va tegishli LedgerEntry yozuvini yaratish.
 """
 
 import base64
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -25,7 +24,7 @@ def _make_commitment_schema(target_minutes: int = 60) -> CreateCommitmentSchema:
         goal_description="Har kuni 1 soat kitob o'qish",
         amount=Decimal("50000"),
         target_focus_minutes=target_minutes,
-        deadline=datetime.now(timezone.utc) + timedelta(days=7),
+        deadline=datetime.now(UTC) + timedelta(days=7),
         beneficiary_note="Mehr-Nur xayriya jamg'armasi",
     )
 
@@ -55,7 +54,9 @@ async def test_resolve_commitment_succeeds_when_target_met(
     db_session: AsyncSession, test_user: User
 ) -> None:
     service = FinanceService(db_session)
-    commitment, _, _ = await service.create_commitment(test_user, _make_commitment_schema(target_minutes=60))
+    commitment, _, _ = await service.create_commitment(
+        test_user, _make_commitment_schema(target_minutes=60)
+    )
 
     # To'lov qilingandek simulyatsiya qilamiz. Deadline'ni o'zgartirmaymiz —
     # `resolve_commitment` o'zi deadline'ni tekshirmaydi (buni faqat Celery
@@ -128,7 +129,9 @@ async def test_resolve_commitment_ignores_sessions_outside_window(
 ) -> None:
     """Commitment yaratilishidan OLDIN bajarilgan seanslar hisobga olinmasligi kerak."""
     service = FinanceService(db_session)
-    commitment, _, _ = await service.create_commitment(test_user, _make_commitment_schema(target_minutes=30))
+    commitment, _, _ = await service.create_commitment(
+        test_user, _make_commitment_schema(target_minutes=30)
+    )
 
     old_session = FocusSession(
         user_id=test_user.id,
@@ -173,14 +176,14 @@ async def test_get_expired_active_commitments_finds_only_relevant(
 
     expired_commitment, _, _ = await service.create_commitment(test_user, _make_commitment_schema())
     expired_commitment.status = CommitmentStatus.ACTIVE
-    expired_commitment.deadline = datetime.now(timezone.utc) - timedelta(days=1)
+    expired_commitment.deadline = datetime.now(UTC) - timedelta(days=1)
 
     future_commitment, _, _ = await service.create_commitment(test_user, _make_commitment_schema())
     future_commitment.status = CommitmentStatus.ACTIVE
-    future_commitment.deadline = datetime.now(timezone.utc) + timedelta(days=1)
+    future_commitment.deadline = datetime.now(UTC) + timedelta(days=1)
 
     pending_commitment, _, _ = await service.create_commitment(test_user, _make_commitment_schema())
-    pending_commitment.deadline = datetime.now(timezone.utc) - timedelta(days=1)
+    pending_commitment.deadline = datetime.now(UTC) - timedelta(days=1)
     # status hamon PENDING_PAYMENT — bu ro'yxatga kirmasligi kerak
 
     await db_session.commit()

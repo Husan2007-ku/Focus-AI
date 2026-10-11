@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class FocusSessionStatus(str, enum.Enum):
+class FocusSessionStatus(enum.StrEnum):
     ACTIVE = "active"  # hozir davom etmoqda
     COMPLETED = "completed"  # to'liq bajarilgan
     CANCELLED = "cancelled"  # foydalanuvchi tugatmasdan to'xtatgan
@@ -31,9 +31,7 @@ class FocusSessionStatus(str, enum.Enum):
 class FocusSession(Base):
     __tablename__ = "focus_sessions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )

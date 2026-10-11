@@ -24,16 +24,16 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.models.user import User
+    pass
 
 
-class CommitmentStatus(str, enum.Enum):
+class CommitmentStatus(enum.StrEnum):
     PENDING_PAYMENT = "pending_payment"  # yaratilgan, lekin hali to'lov qilinmagan
     ACTIVE = "active"  # to'lov qabul qilingan, maqsad davom etmoqda
     SUCCEEDED = "succeeded"  # maqsadga erishildi — pul qaytariladi
@@ -41,22 +41,24 @@ class CommitmentStatus(str, enum.Enum):
     CANCELLED = "cancelled"  # to'lovdan oldin bekor qilingan
 
 
-class PaymentProvider(str, enum.Enum):
+class PaymentProvider(enum.StrEnum):
     PAYME = "payme"
     CLICK = "click"
 
 
-class TransactionState(str, enum.Enum):
+class TransactionState(enum.StrEnum):
     CREATED = "created"
     PERFORMED = "performed"
     CANCELLED = "cancelled"
 
 
-class LedgerEntryType(str, enum.Enum):
+class LedgerEntryType(enum.StrEnum):
     DEPOSIT = "deposit"  # foydalanuvchi pul qo'ydi
     REFUND = "refund"  # maqsad bajarildi, pul qaytarildi
     DONATION = "donation"  # maqsad bajarilmadi, pul xayriyaga ketdi
-    CANCELLATION_REVERSAL = "cancellation_reversal"  # to'lov bekor qilinganda depozitni bekor qilish
+    CANCELLATION_REVERSAL = (
+        "cancellation_reversal"  # to'lov bekor qilinganda depozitni bekor qilish
+    )
 
 
 class FinancialCommitment(Base):
@@ -64,9 +66,7 @@ class FinancialCommitment(Base):
 
     __tablename__ = "financial_commitments"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -102,7 +102,7 @@ class FinancialCommitment(Base):
         return f"<FinancialCommitment {self.id} {self.status} {self.amount}>"
 
 
-class TransactionPurpose(str, enum.Enum):
+class TransactionPurpose(enum.StrEnum):
     COMMITMENT = "commitment"  # moliyaviy javobgarlik depoziti
     SUBSCRIPTION = "subscription"  # Premium/Yillik obuna to'lovi
 
@@ -117,9 +117,7 @@ class Transaction(Base):
 
     __tablename__ = "transactions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     purpose: Mapped[TransactionPurpose] = mapped_column(
         Enum(TransactionPurpose, name="transaction_purpose_enum"), nullable=False
     )
@@ -138,7 +136,9 @@ class Transaction(Base):
     )
     # Provayderning o'z tranzaksiya ID'si — bir xil provayder ichida noyob.
     provider_transaction_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)  # so'mda (provayder tiyin/so'm yuborsa ham shu yerda normalizatsiya qilinadi)
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), nullable=False
+    )  # so'mda (provayder tiyin/so'm yuborsa ham shu yerda normalizatsiya qilinadi)
     state: Mapped[TransactionState] = mapped_column(
         Enum(TransactionState, name="transaction_state_enum"),
         nullable=False,
@@ -161,9 +161,7 @@ class LedgerEntry(Base):
 
     __tablename__ = "ledger_entries"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
