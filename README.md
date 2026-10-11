@@ -1,58 +1,69 @@
-# Takrorla_Bot — O'rnatish va joylashtirish qo'llanmasi
+# FocusAI Backend
 
-## 1. Zudlik bilan qiling
-Eski bot tokeningiz ushbu loyihada ochiq holda bo'lgan edi. **BotFather**'ga o'ting →
-`/mybots` → botingiz → `Bot Settings` → `Revoke current token` → yangi token oling.
-Bu yangi tokenni pastda ko'rsatilgandek faqat environment variable sifatida ishlating.
+FocusAI — AI-yordamchili fokus va produktivlik ilovasi uchun backend. To'liq TZ: `TZ.md`.
 
-## 2. Local sozlash
+Flutter mobil ilova uchun yagona API manba — auth, focus session, kunlik routine, AI agent (Claude), gamifikatsiya, moliyaviy javobgarlik (Payme/Click), obuna va B2B (organizations) shu backend orqali boshqariladi.
+
+## Tezkor ishga tushirish
+
+```bash
+cp .env.example .env   # keyin .env'ni to'ldiring (ANTHROPIC_API_KEY, SECRET_KEY, JWT_SECRET_KEY va h.k.)
+docker-compose up --build
+```
+
+Servislar:
+- API: http://localhost:8010 (konteyner ichida 8000, docker-compose orqali 8010'ga map qilingan) — `/docs` (Swagger, DEBUG=true bo'lsa)
+- Postgres: localhost:5434
+- Redis: localhost:6381
+
+Birinchi ishga tushirishda migratsiyalarni qo'llash:
+
+```bash
+docker-compose exec api alembic upgrade head
+```
+
+## Lokal (Docker'siz) ishlash
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env           # keyin .env faylini o'zingizning qiymatlaringiz bilan to'ldiring
+pip install -e ".[dev]"
+alembic upgrade head
+uvicorn app.main:app --reload
 ```
-`.env` faylini avtomatik yuklash uchun `python-dotenv` o'rnatib, `bot.py` boshiga
-`from dotenv import load_dotenv; load_dotenv()` qo'shishingiz mumkin, yoki
-o'zgaruvchilarni terminalda `export BOT_TOKEN=...` orqali qo'lda belgilang.
 
-## 3. Heroku'ga joylashtirish
+**Muhim:** loyiha `Python >= 3.12` talab qiladi (`pyproject.toml`) — kodda yangi f-string sintaksisi ishlatilgan. Eski Python (masalan 3.10/3.11) bilan `SyntaxError` chiqishi mumkin.
+
+## Testlar
+
 ```bash
-heroku create sizning-bot-nomi
-heroku addons:create heroku-postgresql:mini
-
-heroku config:set BOT_TOKEN=yangi_token
-heroku config:set ADMIN_IDS=123456789
-heroku config:set CHANNELS=@kanal1,@kanal2
-heroku config:set TRIAL_DAYS=3
-heroku config:set REMINDER_HOUR=9
-heroku config:set TIMEZONE=Asia/Tashkent
-
-git push heroku main
-heroku ps:scale worker=1
-```
-`DATABASE_URL` — Postgres addon o'rnatilganda Heroku tomonidan **avtomatik** qo'shiladi, uni qo'lda kiritish shart emas.
-
-## 4. Bot sozlamalari (Telegram tomonda)
-- Bot ikkala kanalda (`CHANNELS`) **admin** bo'lishi shart — aks holda `getChatMember` orqali a'zolikni tekshira olmaydi.
-- Admin bo'lish uchun: kanal → Administrators → Add Administrator → botingizni qo'shing (minimal huquqlar yetarli).
-
-## 5. Admin buyruqlari
-- `/admin` — statistika, foydalanuvchilar ro'yxati, broadcast (faqat `ADMIN_IDS`dagi ID'lar uchun).
-- O'z Telegram ID'ingizni bilish uchun [@userinfobot](https://t.me/userinfobot) ga yozing.
-
-## 6. Fayl tuzilishi
-```
-bot.py          — handlerlar va ishga tushirish nuqtasi
-config.py       — barcha environment variable sozlamalari
-database.py     — PostgreSQL bilan ishlash (asyncpg)
-keyboards.py    — barcha tugmalar
-subscription.py — majburiy obunani tekshirish logikasi
-scheduler.py    — kunlik eslatma (APScheduler)
-TZ.md           — to'liq texnik topshiriq
+pytest -v --cov=app --cov-report=term-missing
+ruff check app tests
 ```
 
-## 7. Muhim eslatmalar
-- Ma'lumotlar bazasi endi PostgreSQL'da — Heroku dyno qayta ishga tushsa ham ma'lumot yo'qolmaydi.
-- Majburiy obuna foydalanuvchi ro'yxatdan o'tgandan **3 kun** o'tgach ishga tushadi (`TRIAL_DAYS` orqali o'zgartiriladi).
-- "❌ Qiyin bo'ldi" xatti-harakati har bir foydalanuvchi uchun ⚙️ Sozlamalar orqali tanlanadi (qattiy/yumshoq rejim).
+CI (`.github/workflows/ci.yml`) har push/PR'da real Postgres+Redis service bilan shu testlarni avtomatik ishga tushiradi.
+
+## Loyiha tuzilishi
+
+```
+app/
+├── main.py            # FastAPI entrypoint, router'lar shu yerda ulanadi
+├── core/               # config, security (JWT/hash), database, redis, logging, exceptions
+├── models/             # SQLAlchemy ORM modellari
+├── schemas/            # Pydantic request/response
+├── api/v1/             # Endpoint'lar (auth, focus, ai_agent, routine, gamification,
+│                         notifications, finance, payments, subscriptions, organizations)
+├── services/           # Biznes logika
+├── integrations/       # Tashqi API klientlari (Claude, Payme, Click, Firebase, SMS)
+└── tasks/              # Celery fon vazifalari
+alembic/                # DB migratsiyalar
+tests/                  # unit + integration
+```
+
+To'liq arxitektura printsiplari, DB sxemasi va roadmap uchun `TZ.md`ga qarang.
+
+## Muhim eslatmalar
+
+- Payme/Click webhook'lari imzo tekshiruvidan o'tadi — `.env`dagi `*_SECRET_KEY` qiymatlari productionda hech qachon commit qilinmasin.
+- AI so'rovlari kunlik limitga ega (`AI_DAILY_REQUEST_LIMIT_FREE`/`_PREMIUM`) — xarajat nazorati uchun.
+- `AI_MODEL` — `.env`da Claude model ID'ni belgilaydi (masalan `claude-sonnet-4-6`); yangi model chiqsa shu yerda almashtiriladi, kodga qattiq yozilmagan.
