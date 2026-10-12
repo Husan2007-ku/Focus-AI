@@ -7,23 +7,35 @@ hech qachon HTTP so'rov yuborilmaydi. Shu sababli `app/main.py` va undagi
 middleware'lar (shu jumladan quyida test qilinayotgan `/health` va
 `RequestIDMiddleware`) coverage hisobotida doim 0% bo'lib chiqqan --
 ular hech qachon import/instantiate qilinmagan edi. Bu fayl aynan shu
-bo'shliqni yopadi: haqiqiy ASGI ilova (`app.main.app`) FastAPI
-`TestClient` orqali ishga tushiriladi va chinakam HTTP so'rov yuboriladi.
+bo'shliqni yopadi: haqiqiy ASGI ilova (`app.main.app`) `httpx.AsyncClient`
++ `ASGITransport` orqali ishga tushiriladi.
 
-`TestClient`ning o'zi `settings.DATABASE_URL` / `settings.REDIS_URL`ga
-ulangan modul darajasidagi `AsyncSessionLocal` / `redis_client`dan
-foydalanadi -- ya'ni boshqa integratsiya testlari ishlatayotgan AYNAN
-shu test Postgres/Redis'iga ulanadi (faqat o'qish uchun: SELECT 1, PING).
+MUHIM -- nega `fastapi.testclient.TestClient` EMAS: birinchi urinishda
+sinxron `TestClient` ishlatilgan edi, lekin u ichki AnyIO portal orqali
+ALOHIDA event loop'da ishlaydi. Shu loyihada `redis_client` va DB engine
+modul darajasidagi SINGLETON'lar (qarang: tests/conftest.py docstring'i
+-- xuddi shu muammo u yerda ham tasviрlangan), ya'ni ular birinchi
+ishlatilgan event loop'ga "yopishib qoladi". `TestClient` so'rovni o'z
+alohida loop'ida yuborgani uchun, keyin pytest-asyncio'ning `db_session`/
+`_reset_redis_connection_pool` fixture'lari BOSHQA (pytest-asyncio'ning
+o'z) loop'ida tozalashga urinib, "Event loop is closed" xatosini
+keltirib chiqargan (real Docker testida aniqlangan). `AsyncClient` +
+`ASGITransport` esa so'rovni TO'G'RIDAN-TO'G'RI joriy test
+coroutine'ining o'zida (demak xuddi shu pytest-asyncio event loop'ida)
+bajaradi -- boshqa barcha testlar bilan bir xil loop, muammo yo'q.
 """
 
-from fastapi.testclient import TestClient
+import pytest
+from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
 
-def test_health_check_reports_ok_when_db_and_redis_are_reachable() -> None:
-    with TestClient(app) as client:
-        response = client.get("/health")
+@pytest.mark.asyncio
+async def test_health_check_reports_ok_when_db_and_redis_are_reachable() -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/health")
 
     assert response.status_code == 200
     body = response.json()
@@ -31,16 +43,20 @@ def test_health_check_reports_ok_when_db_and_redis_are_reachable() -> None:
     assert body["checks"] == {"database": "ok", "redis": "ok"}
 
 
-def test_health_check_response_carries_a_request_id_header() -> None:
-    with TestClient(app) as client:
-        response = client.get("/health")
+@pytest.mark.asyncio
+async def test_health_check_response_carries_a_request_id_header() -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/health")
 
     assert "X-Request-ID" in response.headers
     assert len(response.headers["X-Request-ID"]) > 0
 
 
-def test_request_id_header_sent_by_client_is_echoed_back_unchanged() -> None:
-    with TestClient(app) as client:
-        response = client.get("/health", headers={"X-Request-ID": "test-fixed-id-123"})
+@pytest.mark.asyncio
+async def test_request_id_header_sent_by_client_is_echoed_back_unchanged() -> None:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/health", headers={"X-Request-ID": "test-fixed-id-123"})
 
     assert response.headers["X-Request-ID"] == "test-fixed-id-123"
