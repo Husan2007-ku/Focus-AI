@@ -19,8 +19,11 @@ dependencies = [
     "pydantic-settings>=2.5.2",
 
     # Autentifikatsiya
+    # Eslatma: "passlib[argon2]" ishlatilmayotgani uchun olib tashlandi (P3
+    # audit topilmasi) -- autentifikatsiya telefon-OTP (SMS) va Google OAuth
+    # orqali amalga oshiriladi, lokal parol xeshlash hech qayerda yo'q
+    # (tasdiqlandi: `passlib`/`argon2` kodda hech bir joyda import qilinmagan).
     "python-jose[cryptography]>=3.3.0",
-    "passlib[argon2]>=1.7.4",
 
     # Redis va fon vazifalari
     "redis>=5.1.1",

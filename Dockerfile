@@ -15,13 +15,24 @@ COPY pyproject.toml ./
 # birov uni qo'lda `pip install ".[dev]"` bilan to'ldirgani sababli edi; har
 # safar `docker compose build` qilinganda bu holat yo'qolib qolardi (xuddi
 # shu auditning rate-limit o'zgarishi uchun build qilinganda yuz bergani kabi).
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir ".[dev]"
 
 # Ilova kodini nusxalash
 COPY ./app ./app
 COPY ./alembic ./alembic
 COPY ./alembic.ini ./alembic.ini
+
+# MUHIM: konteyner ichida root sifatida ishlamaymiz (xavfsizlik auditi, P2).
+# Agar ilovada kelajakda RCE turidagi zaiflik topilsa, root bo'lmagan
+# foydalanuvchi konteyner ichidagi zararni cheklaydi (masalan, boshqa
+# fayllarni o'zgartirish yoki konteynerdan "escape" qilish ancha qiyinlashadi).
+# UID 1000 ataylab tanlangan — ko'pchilik Linux host'larida (va dev
+# compose'dagi ./app bind-mount'ida) birinchi oddiy foydalanuvchining UID'i
+# shu bo'lgani uchun fayl egligi masalalari minimal bo'ladi.
+RUN useradd --create-home --uid 1000 --shell /bin/bash appuser && \
+    chown -R appuser:appuser /code
+USER appuser
 
 EXPOSE 8000
 

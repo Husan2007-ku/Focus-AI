@@ -63,8 +63,36 @@ jobs:
 
       - name: Bog'liqliklarni o'rnatish
         run: |
-          pip install --upgrade pip
+          pip install --upgrade pip setuptools
           pip install ".[dev]"
+
+      # MUHIM: o'rnatilgan paketlarda ma'lum xavfsizlik zaifliklari (CVE)
+      # bor-yo'qligini tekshiradi (P3 audit topilmasi). Agar bu qadam
+      # qizil bo'lsa -- bu kodning o'zidagi xato emas, biror bog'liqlikning
+      # yangi versiyasida tuzatilgan zaiflik degani; `pip-audit` xabarida
+      # qaysi paket va qaysi versiyaga yangilash kerakligi ko'rsatiladi.
+      # Pastdagi ikki ID -- ataylab chetlab o'tiladi (triage qilingan, amalda
+      # bu loyihada ishlamaydi), boshqa HAR QANDAY yangi topilma CI'ni qizil
+      # qiladi:
+      #   PYSEC-2026-1325 (ecdsa Minerva timing attack): `ecdsa` faqat
+      #     python-jose'ning ishlatilmayotgan pure-python backend'i uchun
+      #     tranzitiv bog'liqlik -- biz "python-jose[cryptography]" extra'sini
+      #     ataylab o'rnatganmiz va kodda hech qayerda `ecdsa.SigningKey`
+      #     chaqirilmaydi (faqat HS256/HMAC ishlatiladi, ECDSA imzolash
+      #     umuman yo'q). Upstream'da "no planned fix" deb e'lon qilingan.
+      #   CVE-2026-85394 (python-jose alg-confusion): hujum RS/ES turidagi
+      #     asimmetrik kalit va public key talab qiladi; bu loyihada
+      #     `jwt.decode(..., algorithms=[settings.JWT_ALGORITHM])` orqali
+      #     FAQAT HS256 ruxsat etilgan va hech qachon public key
+      #     ishlatilmaydi (qarang: app/core/security.py). Tuzatilgan versiya
+      #     hali chiqmagan -- shu sabab vaqtincha chetlab o'tilmoqda, lekin
+      #     bu qatorni olib tashlashni (fix chiqgach) unutmaslik kerak.
+      - name: Xavfsizlik zaifliklari auditi (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit --desc \
+            --ignore-vuln PYSEC-2026-1325 \
+            --ignore-vuln CVE-2026-85394
 
       - name: Lint tekshiruvi (ruff)
         run: ruff check app tests
