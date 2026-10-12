@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.logging import get_logger
+from app.core.rate_limit import limiter
 from app.services.click_service import ClickService
 from app.services.payme_service import PaymeRPCError, PaymeService
 
@@ -50,6 +51,7 @@ def _verify_payme_auth(authorization: str | None) -> bool:
 
 
 @router.post("/webhooks/payme")
+@limiter.limit("60/minute")
 async def payme_webhook(
     request: Request, authorization: str | None = Header(default=None)
 ) -> JSONResponse:
@@ -127,6 +129,7 @@ async def payme_webhook(
 
 
 @router.post("/webhooks/click")
+@limiter.limit("60/minute")
 async def click_webhook(request: Request) -> JSONResponse:
     """
     Click `Prepare` va `Complete` amallarini bitta endpoint orqali yuboradi —

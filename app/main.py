@@ -8,10 +8,13 @@ from contextlib import asynccontextmanager
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
+from app.core.rate_limit import limiter
 
 configure_logging()
 logger = get_logger(__name__)
@@ -47,6 +50,10 @@ app.add_middleware(
 )
 
 register_exception_handlers(app)
+
+# IP-darajasidagi rate-limit (slowapi) — qarang: app/core/rate_limit.py
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.get("/health", tags=["system"])

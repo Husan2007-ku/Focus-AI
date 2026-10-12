@@ -20,6 +20,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -126,7 +127,24 @@ class PaymeService:
             raw_payload=params,
         )
         self.db.add(transaction)
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            # MUHIM: ikkita concurrent so'rov bir vaqtda shu yerga yetib kelgan —
+            # yuqoridagi "existing is None" tekshiruvi ikkalasi uchun ham rost
+            # bo'lgan edi (race condition), lekin DB'dagi UNIQUE(provider,
+            # provider_transaction_id) cheklovi faqat bitta INSERT'ga ruxsat
+            # berdi. Boshqa parallel so'rov allaqachon yozgan qatorni qaytarib,
+            # Payme'ga bir xil (idempotent) javob beramiz — yangi effekt yo'q.
+            await self.db.rollback()
+            existing = await self._get_by_provider_id(provider_tx_id)
+            if existing is None:
+                raise
+            return {
+                "create_time": _to_millis(existing.created_at),
+                "transaction": str(existing.id),
+                "state": self._to_payme_state(existing),
+            }
         await self.db.refresh(transaction)
 
         logger.info(

@@ -22,7 +22,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -116,6 +125,20 @@ class Transaction(Base):
     """
 
     __tablename__ = "transactions"
+    # MUHIM: bitta provayder ichida tranzaksiya ID'si noyob bo'lishi shart.
+    # Bu DB darajasidagi cheklov race-condition'dan himoya qiladi — Payme/Click
+    # tarmoq muammosi tufayli bir xil webhook'ni concurrent (bir vaqtda, ikki
+    # parallel so'rov sifatida) qayta yuborishi mumkin; shu holatda ikkala so'rov
+    # ham "mavjud emas" deb SELECT qilib ulgurishi mumkin edi (TOCTOU), lekin
+    # endi faqat bittasi INSERT qila oladi, ikkinchisi IntegrityError oladi va
+    # xizmat qatlamida mavjud yozuvni qaytaradi (qarang: PaymeService/ClickService).
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "provider_transaction_id",
+            name="uq_transactions_provider_provider_tx_id",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     purpose: Mapped[TransactionPurpose] = mapped_column(

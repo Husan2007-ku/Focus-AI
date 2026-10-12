@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -118,7 +119,22 @@ class ClickService:
             raw_payload=params,
         )
         self.db.add(transaction)
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            # MUHIM: yuqoridagi izohga qarang (payme_service.py'dagi bir xil
+            # naqsh) — parallel so'rov bizdan oldin yozib ulgurgan, DB'dagi
+            # UNIQUE cheklov buni ushladi. Uning qatorini qaytaramiz.
+            await self.db.rollback()
+            existing = await self._get_by_click_id(str(params["click_trans_id"]))
+            if existing is None:
+                raise
+            return {
+                **base_response,
+                "merchant_prepare_id": str(existing.id),
+                "error": ClickErrorCode.SUCCESS,
+                "error_note": "Success",
+            }
         await self.db.refresh(transaction)
 
         logger.info(

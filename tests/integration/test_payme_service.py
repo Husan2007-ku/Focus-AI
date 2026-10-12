@@ -158,6 +158,47 @@ async def test_create_transaction_is_idempotent_for_same_provider_id(
 
 
 @pytest.mark.asyncio
+async def test_create_transaction_handles_concurrent_duplicate_via_db_constraint(
+    db_session: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Race-condition regressiya testi (2026-10-12 audit).
+
+    Ikkita parallel so'rov bir xil `provider_transaction_id` bilan deyarli bir
+    vaqtda kelsa, ikkalasi ham boshlang'ich "mavjud emas" tekshiruvidan
+    (TOCTOU) o'tib ketishi mumkin edi. Bu yerda ikkinchi chaqiruvning ichki
+    tekshiruvini sun'iy ravishda bir marta "topilmadi" deb simulyatsiya
+    qilamiz — birinchi chaqiruv allaqachon yozib qo'ygan bo'lsa ham. To'g'ri
+    ishlasa: DB'dagi UNIQUE(provider, provider_transaction_id) cheklovi
+    ikkinchi INSERT'ni rad etadi, xizmat buni ushlab birinchi yozuvni
+    qaytaradi — yangi dublikat yaratilmaydi.
+    """
+    commitment = await _make_commitment(db_session, test_user, amount="50000")
+    ref = build_payment_ref(PaymentTargetKind.COMMITMENT, commitment.id)
+    params = {"id": "payme-tx-race-1", "account": {"ref": ref}, "amount": 50000 * 100}
+
+    service = PaymeService(db_session)
+    first = await service.create_transaction(params)
+
+    real_get = service._get_by_provider_id
+    call_count = {"n": 0}
+
+    async def fake_get(provider_tx_id: str):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return None  # race'ni simulyatsiya qilish — "hali ko'rinmayapti"
+        return await real_get(provider_tx_id)
+
+    monkeypatch.setattr(service, "_get_by_provider_id", fake_get)
+
+    second = await service.create_transaction(params)
+
+    assert second["transaction"] == first["transaction"]
+    assert (
+        call_count["n"] == 2
+    )  # 1-chaqiruv: soxta None, 2-chaqiruv: IntegrityError'dan keyingi recovery
+
+
+@pytest.mark.asyncio
 async def test_create_transaction_rejects_amount_mismatch_for_subscription(
     db_session: AsyncSession, test_user: User
 ) -> None:

@@ -174,6 +174,36 @@ async def test_prepare_is_idempotent_for_same_click_trans_id(
 
 
 @pytest.mark.asyncio
+async def test_prepare_handles_concurrent_duplicate_via_db_constraint(
+    db_session: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Race-condition regressiya testi (2026-10-12 audit) — payme_service.py'dagi
+    bir xil naqsh, Click uchun. Qarang: test_payme_service.py'dagi tarjimasi."""
+    commitment = await _make_commitment(db_session, test_user)
+    ref = build_payment_ref(PaymentTargetKind.COMMITMENT, commitment.id)
+    params = _prepare_params(click_trans_id="1099", merchant_trans_id=ref, amount="50000")
+
+    service = ClickService(db_session)
+    first = await service.prepare(params)
+
+    real_get = service._get_by_click_id
+    call_count = {"n": 0}
+
+    async def fake_get(click_trans_id: str):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return None
+        return await real_get(click_trans_id)
+
+    monkeypatch.setattr(service, "_get_by_click_id", fake_get)
+
+    second = await service.prepare(params)
+
+    assert second["merchant_prepare_id"] == first["merchant_prepare_id"]
+    assert call_count["n"] == 2
+
+
+@pytest.mark.asyncio
 async def test_prepare_rejects_malformed_reference(
     db_session: AsyncSession, test_user: User
 ) -> None:
