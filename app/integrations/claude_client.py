@@ -13,7 +13,6 @@ tekshirib, tool chaqiruvlarini agentic loop orqali qayta ishlashi mumkin
 
 from typing import Any
 
-import httpx
 from anthropic import APIError, AsyncAnthropic
 from anthropic.types import Message
 
@@ -48,18 +47,29 @@ class ClaudeClient:
         # kutubxonasining o'zi (NOT_GIVEN) 600 soniyalik read-timeout va 2 ta
         # ichki retry qo'yadi, ya'ni Claude tomoni sekinlashsa bitta so'rov
         # amalda ~30 daqiqagacha osilib qolishi mumkin (Uvicorn worker/Celery
-        # slot shu vaqt davomida band bo'lib qoladi). Shu sababli aniq va
-        # qisqaroq chegaralar beramiz: ulanish uchun 5s, javob o'qish uchun
-        # 25s -- chat turidagi foydalanuvchi so'rovi uchun yetarli, lekin
-        # xizmat tanazzulga uchraganda darhol ExternalServiceError bilan
-        # to'xtaydi. max_retries=2 (SDK standarti) -- 429/5xx/ulanish
-        # xatolarida avtomatik qayta urinadi, shuning uchun bu yerga alohida
-        # tenacity qatlami QO'SHILMAYDI (ikki xil retry mexanizmini bir-
-        # birining ustiga qo'yish har bir chaqiruvni 3x3 martagacha
-        # ko'paytirib, aksincha vaziyatni yomonlashtirar edi).
+        # slot shu vaqt davomida band bo'lib qoladi). Shu sababli 25 soniyalik
+        # umumiy chegara beramiz -- chat turidagi foydalanuvchi so'rovi uchun
+        # yetarli, lekin xizmat tanazzulga uchraganda darhol
+        # ExternalServiceError bilan to'xtaydi.
+        #
+        # ESLATMA (2026-10-12 tuzatish): bu yerda ataylab oddiy `float`
+        # ishlatiladi, `httpx.Timeout(...)` EMAS -- anthropic SDK so'nggi
+        # versiyalarda ichki HTTP klientini `httpx2`'ga o'tkazgan (loyihamiz
+        # esa `httpx`ni ishlatadi), shuning uchun `httpx.Timeout` obyekti
+        # endi rad etiladi ("this SDK uses httpx2" xatosi, docker build real
+        # testda aniqlandi). `httpx2`ni to'g'ridan-to'g'ri import qilish ham
+        # xato yo'l -- bu bizning pyproject.toml'da e'lon qilinmagan, faqat
+        # anthropic kutubxonasining ichki (bir marta allaqachon o'zgargan)
+        # amalga oshirish tafsiloti. Oddiy `float` esa SDK qaysi HTTP
+        # klientini ishlatishidan qat'iy nazar universal ishlaydi.
+        # max_retries=2 (SDK standarti) -- 429/5xx/ulanish xatolarida
+        # avtomatik qayta urinadi, shuning uchun bu yerga alohida tenacity
+        # qatlami QO'SHILMAYDI (ikki xil retry mexanizmini bir-birining
+        # ustiga qo'yish har bir chaqiruvni 3x3 martagacha ko'paytirib,
+        # aksincha vaziyatni yomonlashtirar edi).
         self._client = AsyncAnthropic(
             api_key=settings.ANTHROPIC_API_KEY,
-            timeout=httpx.Timeout(connect=5.0, read=25.0, write=10.0, pool=5.0),
+            timeout=25.0,
             max_retries=2,
         )
 
